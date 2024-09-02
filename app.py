@@ -1,7 +1,7 @@
 import streamlit as st
 import json
 import requests
-from moviepy.editor import VideoFileClip, TextClip, CompositeVideoClip
+from moviepy.editor import VideoFileClip, TextClip, CompositeVideoClip, ColorClip
 
 # Funzione per generare il video
 def create_video(json_data):
@@ -15,17 +15,25 @@ def create_video(json_data):
     with open('background_video.mp4', 'wb') as f:
         f.write(video_response.content)
 
+    # Carica il video di sfondo
     clip = VideoFileClip('background_video.mp4')
 
     # Crea clip dei testi
     text_clips = []
     for overlay in data["video"]["overlayTexts"]:
-        txt_clip = (
-            TextClip(overlay["text"], fontsize=overlay["size"], color=overlay["color"], 
-                     method="label", bg_color=overlay.get("background", {}).get("color"))  # Usa solo metodo label
-            .set_position((overlay["position"]["x"], overlay["position"]["y"]))
-            .set_duration(clip.duration)
-        )
+        # Crea un'area di sfondo per il testo
+        if overlay.get("background"):
+            bg_color = overlay["background"]["color"]
+            bg_opacity = overlay["background"].get("opacity", 0.6)
+            # Crea un clip di colore per lo sfondo del testo
+            background_clip = ColorClip(clip.size, color=bg_color)
+            background_clip = background_clip.set_opacity(bg_opacity).set_duration(clip.duration).set_position((overlay["position"]["x"], overlay["position"]["y"]))
+            text_clips.append(background_clip)
+
+        # Crea il clip di testo
+        txt_clip = (TextClip(overlay["text"], fontsize=overlay["size"], color=overlay["color"], method="label")
+                     .set_position((overlay["position"]["x"], overlay["position"]["y"]))
+                     .set_duration(clip.duration))
         text_clips.append(txt_clip)
 
     # Combina il video di sfondo con i testi
