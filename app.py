@@ -67,7 +67,11 @@ def create_video(json_data):
         
         txt_clip = (
             ImageClip(text_img_path)
-            .set_position((overlay["position"]["x"], overlay["position"]["y"]))
+            .set_position((
+                lambda x: int(x) if x.isdigit() else x, 
+                lambda y: int(y) if y.isdigit() else y
+            )(overlay["position"]["x"]), 
+            (overlay["position"]["y"]))
             .set_duration(clip.duration)
         )
         text_clips.append(txt_clip)
