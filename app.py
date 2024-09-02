@@ -1,7 +1,7 @@
 import streamlit as st
 import json
 import requests
-from moviepy.editor import VideoFileClip, TextClip, CompositeVideoClip, ColorClip
+from moviepy.editor import VideoFileClip, TextClip, CompositeVideoClip
 
 # Funzione per generare il video
 def create_video(json_data):
@@ -10,7 +10,7 @@ def create_video(json_data):
     # Scarica il video di sfondo
     video_url = data["video"]["background"]["url"]
     video_response = requests.get(video_url)
-    
+
     # Salva il video di sfondo localmente
     with open('background_video.mp4', 'wb') as f:
         f.write(video_response.content)
@@ -21,20 +21,20 @@ def create_video(json_data):
     # Crea clip dei testi
     text_clips = []
     for overlay in data["video"]["overlayTexts"]:
-        # crea il clip del testo anche con il fondo trasparente
         txt_clip = (
-            TextClip(overlay["text"], fontsize=overlay["size"], color=overlay["color"], method="label")
+            TextClip(overlay["text"], fontsize=overlay["size"], color=overlay["color"],
+                     method='label')  # Usando 'label' per il testo
             .set_position((overlay["position"]["x"], overlay["position"]["y"]))
             .set_duration(clip.duration)
         )
-        
-        # Se c'è uno sfondo, crea un clip ColorClip
+
+        # Se c'è color background, crea un ColorClip
         if overlay.get("background"):
             bg_color = overlay["background"]["color"]
             bg_opacity = overlay["background"].get("opacity", 0.6)
-            bg_clip = ColorClip(clip.size, color=bg_color).set_duration(clip.duration)
-            bg_clip = bg_clip.set_opacity(bg_opacity).set_position((overlay["position"]["x"], overlay["position"]["y"]))
-            # Combina il clip di fondo con il clip di testo
+            bg_clip = (CompositeVideoClip([clip.set_opacity(bg_opacity)]) # Aggiungi opacità
+                        .set_duration(clip.duration)
+                        .set_position((overlay["position"]["x"], overlay["position"]["y"])))
             text_clips.append(CompositeVideoClip([bg_clip, txt_clip]))
         else:
             text_clips.append(txt_clip)
