@@ -4,6 +4,10 @@ import requests
 from moviepy.editor import VideoFileClip, ImageClip, CompositeVideoClip
 from PIL import Image, ImageDraw, ImageFont
 import tempfile
+import logging
+
+# Configura il logging
+logging.basicConfig(level=logging.INFO)
 
 # Funzione per creare un'immagine di testo usando PIL senza font esterno
 def create_text_image(text, font_size, color, bg_color=None):
@@ -24,45 +28,38 @@ def create_text_image(text, font_size, color, bg_color=None):
 # Funzione per generare il video
 def create_video(json_data):
     data = json.loads(json_data)
-
-    # Scarica il video di sfondo
+    
+    logging.info("Scaricamento del video di sfondo")
     video_url = data["video"]["background"]["url"]
     video_response = requests.get(video_url)
-
+    
     # Salva il video di sfondo localmente
     with open('background_video.mp4', 'wb') as f:
         f.write(video_response.content)
+    
+    logging.info("Caricamento del video di sfondo")
+    clip = VideoFileClip('background_video.mp4').resize(width=640)  # Riduci la risoluzione
 
-    # Carica il video di sfondo
-    clip = VideoFileClip('background_video.mp4')
-
-    # Crea clip dei testi come immagini sovrapposte
     text_clips = []
     for overlay in data["video"]["overlayTexts"]:
-        # Crea l'immagine del testo
+        logging.info(f"Creazione dell'immagine del testo per: {overlay['text']}")
         text_img = create_text_image(overlay["text"], overlay["size"], overlay["color"])
-
-        # Salva temporaneamente l'immagine del testo
         text_img_path = tempfile.mktemp(suffix='.png')
         text_img.save(text_img_path)
-        
-        # Crea un ImageClip dal file PNG
         txt_clip = (
             ImageClip(text_img_path)
             .set_position((overlay["position"]["x"], overlay["position"]["y"]))
             .set_duration(clip.duration)
         )
-
         text_clips.append(txt_clip)
-
-    # Combina il video di sfondo con i testi sovrapposti
+    
+    logging.info("Combinazione del video con il testo sovrapposto")
     final_clip = CompositeVideoClip([clip] + text_clips)
     final_clip.write_videofile("output_video.mp4", codec="libx264", fps=24)
 
 # Interfaccia Streamlit
 st.title('Generatore di Video con Testo Sovrapposto')
 
-# Input JSON
 json_input = st.text_area("Inserisci il JSON per il video", height=300)
 
 if st.button("Crea Video"):
@@ -70,9 +67,9 @@ if st.button("Crea Video"):
         try:
             create_video(json_input)
             st.success("Video creato con successo!")
-            st.video("output_video.mp4")  # Mostra il video generato
-            
+            st.video("output_video.mp4")
         except Exception as e:
             st.error(f"Si è verificato un errore: {e}")
+            logging.error(f"Errore durante la creazione del video: {e}")
     else:
         st.warning("Per favore, inserisci un JSON valido.")
