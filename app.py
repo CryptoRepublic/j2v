@@ -1,46 +1,13 @@
 import streamlit as st
 import json
 import requests
-from moviepy.editor import VideoFileClip, ImageClip, CompositeVideoClip
-from PIL import Image, ImageDraw, ImageFont
-import tempfile
-import logging
-
-# Configura il logging
-logging.basicConfig(level=logging.INFO)
-
-# Funzione per creare un'immagine di testo usando PIL
-def create_text_image(text, font_size, color, bg_color=None, opacity=1.0):
-    try:
-        # Usa il font di default fornito da PIL
-        font = ImageFont.load_default()
-        
-        # Calcola la dimensione del testo
-        img_temp = Image.new('RGBA', (1, 1))
-        draw_temp = ImageDraw.Draw(img_temp)
-        bbox = draw_temp.textbbox((0, 0), text, font=font)
-        text_width = bbox[2] - bbox[0]
-        text_height = bbox[3] - bbox[1]
-        
-        # Crea l'immagine con lo sfondo (se presente)
-        img = Image.new('RGBA', (text_width, text_height), (255, 255, 255, 0))
-        draw = ImageDraw.Draw(img)
-        
-        if bg_color:
-            bg_img = Image.new('RGBA', (text_width, text_height), bg_color + (int(255 * opacity),))
-            img = Image.alpha_composite(bg_img, img)
-        
-        draw.text((0, 0), text, font=font, fill=color)
-        return img
-    except Exception as e:
-        logging.error(f"Errore nella creazione dell'immagine di testo: {e}")
-        raise
+from moviepy.editor import VideoFileClip, TextClip, CompositeVideoClip
 
 # Funzione per generare il video
 def create_video(json_data):
     data = json.loads(json_data)
     
-    logging.info("Scaricamento del video di sfondo")
+    # Scarica il video di sfondo
     video_url = data["video"]["background"]["url"]
     video_response = requests.get(video_url)
     
@@ -48,35 +15,41 @@ def create_video(json_data):
     with open('background_video.mp4', 'wb') as f:
         f.write(video_response.content)
     
-    logging.info("Caricamento del video di sfondo")
+    # Carica il video di sfondo
     clip = VideoFileClip('background_video.mp4').resize(width=640)  # Riduci la risoluzione per evitare problemi
     
     text_clips = []
     for overlay in data["video"]["overlayTexts"]:
-        logging.info(f"Creazione dell'immagine del testo per: {overlay['text']}")
-        text_img = create_text_image(
-            overlay["text"],
-            font_size=overlay["size"],
-            color=overlay["color"],
-            bg_color=overlay["background"]["color"] if "background" in overlay else None,
-            opacity=overlay["background"]["opacity"] if "background" in overlay else 0
-        )
-        
-        text_img_path = tempfile.mktemp(suffix='.png')
-        text_img.save(text_img_path)
-        
+        # Crea un clip di testo
         txt_clip = (
-            ImageClip(text_img_path)
+            TextClip(overlay["text"], fontsize=overlay["size"], color=overlay["color"], font='Arial')  # Usa Arial se disponibile
             .set_position((
-                lambda x: int(x) if x.isdigit() else x, 
-                lambda y: int(y) if y.isdigit() else y
-            )(overlay["position"]["x"]), 
+                lambda x: int(clip.w * float(x.strip('%')) / 100) if '%' in x else x, 
+                lambda y: int(clip.h * float(y.strip('%')) / 100) if '%' in y else y
+            )(overlay["position"]["x"]),
             (overlay["position"]["y"]))
             .set_duration(clip.duration)
         )
-        text_clips.append(txt_clip)
+        
+        # Se c'è uno sfondo colorato, aggiungi un'immagine di sfondo semi-trasparente
+        if overlay.get("background"):
+            bg_color = overlay["background"]["color"]
+            bg_opacity = overlay["background"].get("opacity", 0.6)
+            bg_clip = (
+                TextClip(overlay["text"], fontsize=overlay["size"], color=bg_color, font='Arial', size=(clip.w, clip.h))
+                .set_opacity(bg_opacity)
+                .set_position((
+                    lambda x: int(clip.w * float(x.strip('%')) / 100) if '%' in x else x, 
+                    lambda y: int(clip.h * float(y.strip('%')) / 100) if '%' in y else y
+                )(overlay["position"]["x"]),
+                (overlay["position"]["y"]))
+                .set_duration(clip.duration)
+            )
+            text_clips.append(CompositeVideoClip([bg_clip, txt_clip]))
+        else:
+            text_clips.append(txt_clip)
     
-    logging.info("Combinazione del video con il testo sovrapposto")
+    # Combina il video di sfondo con i testi
     final_clip = CompositeVideoClip([clip] + text_clips)
     final_clip.write_videofile("output_video.mp4", codec="libx264", fps=24)
 
@@ -132,6 +105,5 @@ if st.button("Crea Video"):
             st.video("output_video.mp4")
         except Exception as e:
             st.error(f"Si è verificato un errore: {e}")
-            logging.error(f"Errore durante la creazione del video: {e}")
     else:
         st.warning("Per favore, inserisci un JSON valido.")
