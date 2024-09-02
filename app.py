@@ -9,10 +9,12 @@ import tempfile
 def create_text_image(text, font_size, color, bg_color=None):
     # Usa il font di default fornito da PIL
     font = ImageFont.load_default()  # Carica il font predefinito
-    # Calcola la dimensione del testo
+    # Calcola la dimensione del testo usando textbbox
     img_temp = Image.new('RGBA', (1, 1))
     draw_temp = ImageDraw.Draw(img_temp)
-    text_width, text_height = draw_temp.textsize(text, font=font)
+    bbox = draw_temp.textbbox((0, 0), text, font=font)
+    text_width = bbox[2] - bbox[0]
+    text_height = bbox[3] - bbox[1]
     
     img = Image.new('RGBA', (text_width, text_height), bg_color if bg_color else (255, 255, 255, 0))
     draw = ImageDraw.Draw(img)
