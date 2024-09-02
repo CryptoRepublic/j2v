@@ -10,6 +10,8 @@ def create_video(json_data):
     # Scarica il video di sfondo
     video_url = data["video"]["background"]["url"]
     video_response = requests.get(video_url)
+    
+    # Salva il video di sfondo localmente
     with open('background_video.mp4', 'wb') as f:
         f.write(video_response.content)
 
@@ -18,20 +20,17 @@ def create_video(json_data):
     # Crea clip dei testi
     text_clips = []
     for overlay in data["video"]["overlayTexts"]:
-        txt_clip = (TextClip(overlay["text"], fontsize=overlay["size"], color=overlay["color"])
-                     .set_position((overlay["position"]["x"], overlay["position"]["y"]))
-                     .set_duration(clip.duration))
-        
-        if overlay["background"]:
-            bg_clip = (TextClip(overlay["text"], fontsize=overlay["size"], color=overlay["background"]["color"],
-                                bg_color=overlay["background"]["color"], size=txt_clip.size)
-                        .set_opacity(overlay["background"]["opacity"])
-                        .set_position((overlay["position"]["x"], overlay["position"]["y"]))
-                        .set_duration(clip.duration))
-            text_clips.append(CompositeVideoClip([bg_clip, txt_clip]))
+        txt_clip = (
+            TextClip(overlay["text"], fontsize=overlay["size"], color=overlay["color"], 
+                     method="label", bg_color=overlay.get("background", {}).get("color"))  # Usa solo metodo label
+            .set_position((overlay["position"]["x"], overlay["position"]["y"]))
+            .set_duration(clip.duration)
+        )
+        text_clips.append(txt_clip)
 
+    # Combina il video di sfondo con i testi
     final_clip = CompositeVideoClip([clip] + text_clips)
-    final_clip.write_videofile("output_video.mp4", codec="libx264")
+    final_clip.write_videofile("output_video.mp4", codec="libx264", fps=24)
 
 # Interfaccia Streamlit
 st.title('Generatore di Video con Testo Sovrapposto')
@@ -44,8 +43,8 @@ if st.button("Crea Video"):
         try:
             create_video(json_input)
             st.success("Video creato con successo!")
-            st.video("output_video.mp4")
-        
+            st.video("output_video.mp4")  # Mostra il video generato
+            
         except Exception as e:
             st.error(f"Si è verificato un errore: {e}")
     else:
