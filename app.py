@@ -11,26 +11,30 @@ logging.basicConfig(level=logging.INFO)
 
 # Funzione per creare un'immagine di testo usando PIL
 def create_text_image(text, font_size, color, bg_color=None, opacity=1.0):
-    # Usa il font di default fornito da PIL
-    font = ImageFont.load_default()
-    
-    # Calcola la dimensione del testo usando textbbox
-    img_temp = Image.new('RGBA', (1, 1))
-    draw_temp = ImageDraw.Draw(img_temp)
-    bbox = draw_temp.textbbox((0, 0), text, font=font)
-    text_width = bbox[2] - bbox[0]
-    text_height = bbox[3] - bbox[1]
-    
-    # Crea l'immagine con lo sfondo (se presente)
-    img = Image.new('RGBA', (text_width, text_height), (255, 255, 255, 0))
-    draw = ImageDraw.Draw(img)
-    
-    if bg_color:
-        bg_img = Image.new('RGBA', (text_width, text_height), bg_color + (int(255 * opacity),))
-        img = Image.alpha_composite(bg_img, img)
-    
-    draw.text((0, 0), text, font=font, fill=color)
-    return img
+    try:
+        # Usa il font di default fornito da PIL
+        font = ImageFont.load_default()
+        
+        # Calcola la dimensione del testo
+        img_temp = Image.new('RGBA', (1, 1))
+        draw_temp = ImageDraw.Draw(img_temp)
+        bbox = draw_temp.textbbox((0, 0), text, font=font)
+        text_width = bbox[2] - bbox[0]
+        text_height = bbox[3] - bbox[1]
+        
+        # Crea l'immagine con lo sfondo (se presente)
+        img = Image.new('RGBA', (text_width, text_height), (255, 255, 255, 0))
+        draw = ImageDraw.Draw(img)
+        
+        if bg_color:
+            bg_img = Image.new('RGBA', (text_width, text_height), bg_color + (int(255 * opacity),))
+            img = Image.alpha_composite(bg_img, img)
+        
+        draw.text((0, 0), text, font=font, fill=color)
+        return img
+    except Exception as e:
+        logging.error(f"Errore nella creazione dell'immagine di testo: {e}")
+        raise
 
 # Funzione per generare il video
 def create_video(json_data):
