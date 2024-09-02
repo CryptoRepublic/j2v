@@ -1,9 +1,12 @@
 import streamlit as st
 import json
 import requests
-from moviepy.editor import VideoFileClip, TextClip, CompositeVideoClip
+from moviepy.editor import VideoFileClip, CompositeVideoClip, TextClip
+import subprocess
+import tempfile
+import os
 
-# Funzione per generare il video
+# Funzione per creare un video con testo sovrapposto
 def create_video(json_data):
     data = json.loads(json_data)
     
@@ -20,12 +23,12 @@ def create_video(json_data):
     
     text_clips = []
     for overlay in data["video"]["overlayTexts"]:
-        # Crea un clip di testo
+        # Usa MoviePy per creare un clip di testo
         txt_clip = (
-            TextClip(overlay["text"], fontsize=overlay["size"], color=overlay["color"], font='Arial')  # Usa Arial se disponibile
+            TextClip(overlay["text"], fontsize=overlay["size"], color=overlay["color"], font='Arial')
             .set_position((
-                lambda x: int(clip.w * float(x.strip('%')) / 100) if '%' in x else x, 
-                lambda y: int(clip.h * float(y.strip('%')) / 100) if '%' in y else y
+                lambda x: int(clip.w * float(x.strip('%')) / 100) if '%' in x else int(x), 
+                lambda y: int(clip.h * float(y.strip('%')) / 100) if '%' in y else int(y)
             )(overlay["position"]["x"]),
             (overlay["position"]["y"]))
             .set_duration(clip.duration)
@@ -35,15 +38,22 @@ def create_video(json_data):
         if overlay.get("background"):
             bg_color = overlay["background"]["color"]
             bg_opacity = overlay["background"].get("opacity", 0.6)
+            # Crea un file temporaneo con il testo di sfondo usando ffmpeg
+            bg_text_img_path = tempfile.mktemp(suffix='.png')
+            subprocess.run([
+                'ffmpeg', '-f', 'lavfi', '-i', f'size={clip.size[0]}x{clip.size[1]}:color={bg_color}',
+                '-vf', f'format=rgba,geq=r=0:g=0:b=0:a={int(255 * bg_opacity)}',
+                '-y', bg_text_img_path
+            ])
+            # Crea un clip di sfondo
             bg_clip = (
-                TextClip(overlay["text"], fontsize=overlay["size"], color=bg_color, font='Arial', size=(clip.w, clip.h))
+                TextClip(overlay["text"], fontsize=overlay["size"], color=bg_color, font='Arial')
                 .set_opacity(bg_opacity)
-                .set_position((
-                    lambda x: int(clip.w * float(x.strip('%')) / 100) if '%' in x else x, 
-                    lambda y: int(clip.h * float(y.strip('%')) / 100) if '%' in y else y
-                )(overlay["position"]["x"]),
-                (overlay["position"]["y"]))
                 .set_duration(clip.duration)
+                .set_position((
+                    lambda x: int(clip.w * float(x.strip('%')) / 100) if '%' in x else int(x),
+                    (overlay["position"]["y"]))
+                )
             )
             text_clips.append(CompositeVideoClip([bg_clip, txt_clip]))
         else:
