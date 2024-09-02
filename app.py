@@ -1,7 +1,18 @@
 import streamlit as st
 import json
 import requests
-from moviepy.editor import VideoFileClip, TextClip, CompositeVideoClip
+from moviepy.editor import VideoFileClip, ImageClip, CompositeVideoClip
+from PIL import Image, ImageDraw, ImageFont
+import tempfile
+
+# Funzione per creare un'immagine di testo usando PIL
+def create_text_image(text, font_size, color, bg_color=None):
+    font = ImageFont.truetype("arial.ttf", font_size)  # Assicurati che arial.ttf sia disponibile su Streamlit Cloud
+    size = font.getsize(text)
+    img = Image.new('RGBA', size, bg_color if bg_color else (255, 255, 255, 0))
+    draw = ImageDraw.Draw(img)
+    draw.text((0, 0), text, font=font, fill=color)
+    return img
 
 # Funzione per generare il video
 def create_video(json_data):
@@ -18,28 +29,26 @@ def create_video(json_data):
     # Carica il video di sfondo
     clip = VideoFileClip('background_video.mp4')
 
-    # Crea clip dei testi
+    # Crea clip dei testi come immagini sovrapposte
     text_clips = []
     for overlay in data["video"]["overlayTexts"]:
+        # Crea l'immagine del testo
+        text_img = create_text_image(overlay["text"], overlay["size"], overlay["color"])
+
+        # Salva temporaneamente l'immagine del testo
+        text_img_path = tempfile.mktemp(suffix='.png')
+        text_img.save(text_img_path)
+        
+        # Crea un ImageClip dal file PNG
         txt_clip = (
-            TextClip(overlay["text"], fontsize=overlay["size"], color=overlay["color"],
-                     method='label')  # Usando 'label' per il testo
+            ImageClip(text_img_path)
             .set_position((overlay["position"]["x"], overlay["position"]["y"]))
             .set_duration(clip.duration)
         )
 
-        # Se c'è color background, crea un ColorClip
-        if overlay.get("background"):
-            bg_color = overlay["background"]["color"]
-            bg_opacity = overlay["background"].get("opacity", 0.6)
-            bg_clip = (CompositeVideoClip([clip.set_opacity(bg_opacity)]) # Aggiungi opacità
-                        .set_duration(clip.duration)
-                        .set_position((overlay["position"]["x"], overlay["position"]["y"])))
-            text_clips.append(CompositeVideoClip([bg_clip, txt_clip]))
-        else:
-            text_clips.append(txt_clip)
+        text_clips.append(txt_clip)
 
-    # Combina il video di sfondo con i testi
+    # Combina il video di sfondo con i testi sovrapposti
     final_clip = CompositeVideoClip([clip] + text_clips)
     final_clip.write_videofile("output_video.mp4", codec="libx264", fps=24)
 
