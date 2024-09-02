@@ -5,9 +5,10 @@ from moviepy.editor import VideoFileClip, ImageClip, CompositeVideoClip
 from PIL import Image, ImageDraw, ImageFont
 import tempfile
 
-# Funzione per creare un'immagine di testo usando PIL
+# Funzione per creare un'immagine di testo usando PIL senza font esterno
 def create_text_image(text, font_size, color, bg_color=None):
-    font = ImageFont.truetype("arial.ttf", font_size)  # Assicurati che arial.ttf sia disponibile su Streamlit Cloud
+    # Usa il font di default fornito da PIL
+    font = ImageFont.load_default()  # Carica il font predefinito
     size = font.getsize(text)
     img = Image.new('RGBA', size, bg_color if bg_color else (255, 255, 255, 0))
     draw = ImageDraw.Draw(img)
